@@ -1,0 +1,15 @@
+---
+title: "Proyecto Final"
+subtitle: "Modelos Estadísticos Avanzados"
+author: "Claudio Poveda, Tiffany Méndez, Valeria Chinchilla, Stephanie Rodriguez, Mariel Rodriguez"
+output:
+  html_document:
+    theme: lumen
+    highlight: tango 
+    toc: true
+    toc_float:
+      collapsed: true
+    number_sections: true 
+---
+
+# Introducción
