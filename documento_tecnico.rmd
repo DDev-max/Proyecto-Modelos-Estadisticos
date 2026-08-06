@@ -4,12 +4,215 @@ subtitle: "Modelos Estadísticos Avanzados"
 author: "Claudio Poveda, Tiffany Méndez, Valeria Chinchilla, Stephanie Rodriguez, Mariel Rodriguez"
 output:
   html_document:
+    df_print: paged
     theme: lumen
     highlight: tango 
     toc: true
     toc_float:
       collapsed: true
     number_sections: true 
+
 ---
 
+
 # Introducción
+
+El [dataset utlizado](https://www.kaggle.com/datasets/uradkr/ohio-sold-real-estate-intelligence-2026) proviene de Kaggle y fue recientemente publicado en el 2026. Contiene 21 columnas y +8 500 registros acerca de transacciones reales de ventas residenciales desde el año 1800 hasta el 2026 en Ohio, Estados Unidos. Incluye datos como el precio de venta, cantidad de baños y habitaciones, tamaño de la casa, año de venta, entre otros. 
+
+## Objetivos
+
+El objetivo de este proyecto es determinar el peso que tienen las variables en el precio final de las viviendas. 
+También se busca encontrar grupos de residencias con comportamiento similar entre si y ser capaces de predecir su valor final en funcion de las demas variables
+
+## Pregunta de Analisis
+
+¿Cómo influyen las características de las viviendas en su precio final en Ohio, qué agrupaciones naturales existen en el mercado y con qué precisión podemos predecir su valor?
+
+# Descripción de la base de datos
+
+```{r, echo=FALSE, results='asis'}
+cat('
+<style>
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+  }
+  th, td {
+    padding: 10px 20px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .rojo{
+    background-color: #ffcaca
+  }
+
+  .amarillo{
+    background-color: #ffe19c
+  }
+
+</style>
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Descripción</th>
+      <th>Valores</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>type</code></td>
+      <td>Clasificacion arquitectonica de la propiedad.</td>
+      <td>
+        <li><code>single_family</code>: Casa independiente e individual, pensada para una sola familia</li>
+        <li><code>condos</code>: Apartamentos individuales dentro de un solo edificio</li>
+        <li><code>townhomes</code>: Casas adosadas</li>
+        <li><code>multi_family</code>: Edificios completos para varias familias</li>
+        <li><code>other</code>: Cualquier tipo de propiedad que no encaja en las categorías anteriores</li>
+      </td>
+    </tr>
+
+    <tr class="rojo">
+      <td><code>sub_type</code></td>
+      <td>No disponible</td>
+      <td> 100% nulos </td>
+    </tr>
+
+    <tr>
+      <td><code>listPrice</code></td>
+      <td>Precio inicial pedido por el vendedor en USD</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr>
+      <td><code>sqft</code></td>
+      <td>Superficie interior en pies cuadrados</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr>
+      <td><code>stories</code></td>
+      <td>Numero de pisos</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr>
+      <td><code>beds</code></td>
+      <td>Cantidad de dormitorios. Si la vivienda es <code>multi_family</code>, puede indicar la cantidad total de apartamentos</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr class="amarillo">
+      <td><code>baths</code></td>
+      <td>Conteo total de baños. Combina baños completos (inodoro + ducha + lavamanos) y baños de visitas (inodoro + lavamanos)</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr class="amarillo">
+      <td><code>baths_full</code></td>
+      <td>Cantidad de baños completos</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr class="amarillo">
+      <td><code>baths_full_calc</code></td>
+      <td>Cantidad de baños completos calclados por el sistema</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr>
+      <td><code>garage</code></td>
+      <td>Cantidad de autos que caben en el garage</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr>
+      <td><code>lastSoldPrice</code></td>
+      <td>Precio de venta final</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr>
+      <td><code>postal_code</code></td>
+      <td>Codigo postal de 5 digitos correspondiente a la propiedad</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr class="rojo">
+      <td><code>is_valid_oh_zip</code></td>
+      <td>Indica si el codigo postal existe en Ohio</td>
+      <td>Todos sus valores son <code>True</code></td>
+    </tr>
+
+    <tr class="rojo">
+      <td><code>zip_candidate_count</code></td>
+      <td>Número de códigos postales de Ohio que el sistema encontró dentro del enlace web de la propiedad</td>
+      <td>Todos los valores son <code>1</code></td>
+    </tr>
+
+    <tr class="amarillo">
+      <td><code>sold_to_list_ratio</code></td>
+      <td>Resultado de la division entre <code>lastSoldPrice</code> y <code>listPrice</code>. Si este valor es mayor a <code>1</code>, entonces indica que la casa se vendio por encima del precio original.</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr class="amarillo">
+      <td><code>price_premium_pct</code></td>
+      <td>Porcentaje de prima o descuento. Si es positivo indica que la propiedad se vendio por encima del precio original</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr class="amarillo">
+      <td><code>negotiation_outcome</code></td>
+      <td>Resultado de la negociacion</td>
+      <td>
+        <li><code>At Asking</code>: La casa se vendió exactamente al precio listado</li>
+        <li><code>Above Asking</code>: La casa se vendió por más dinero del que pedía el vendedor</li>
+        <li><code>Below Asking</code>: El comprador obtuvo un descuento</li>
+      </td>
+    </tr>
+
+    <tr>
+      <td><code>ratio_outlier_flag</code></td>
+      <td>Indica si <code>sold_to_list_ratio</code> es un valor atipico</td>
+      <td>Booleano</td>
+    </tr>
+
+    <tr class="rojo">
+      <td><code>text_clean</code></td>
+      <td>Descripción del texto publicitario de la propiedad</td>
+      <td>Cadenas de texto</td>
+    </tr>
+
+    <tr class="rojo">
+      <td><code>pii_redacted_flag</code></td>
+      <td>Indica si el campo <code>text_clean</code> poseia informacion personal que fue censurada</td>
+      <td>Booleano</td>
+    </tr>
+
+    <tr>
+      <td><code>year_built</code></td>
+      <td>Año en que la propiedad fue construida</td>
+      <td>Numericos</td>
+    </tr>
+
+  </tbody>
+</table>
+')
+```
+
+## Carga de datos
+```{r, message=FALSE}
+library(dplyr)
+
+df = read.csv("ohio_sold_real_estate_intelligence_2026.csv")
+df = df %>%
+    select(-c(sub_type, is_valid_oh_zip, zip_candidate_count, text_clean, pii_redacted_flag))
+
+head(df, 3)
+```
+
+# Exploración y preparación de los datos
