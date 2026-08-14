@@ -1,0 +1,583 @@
+---
+title: "Proyecto Final"
+author: Claudio Poveda, Tiffany Méndez, Valeria Chinchilla, Stephanie Rodriguez, Mariel
+  Rodriguez
+subtitle: Modelos Estadísticos Avanzados
+output:
+  pdf_document:
+    toc: true
+  html_document:
+    df_print: paged
+    theme: lumen
+    highlight: tango
+    toc: true
+    toc_float:
+      collapsed: true
+    number_sections: true
+---
+
+
+```{r setup, include=FALSE}
+# Esta opción hace que el código Y sus resultados aparezcan en el PDF.
+# NO la modifique.
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+
+# Introducción
+
+El [dataset utlizado](https://www.kaggle.com/datasets/uradkr/ohio-sold-real-estate-intelligence-2026) proviene de Kaggle y fue recientemente publicado en el 2026. Contiene 21 columnas y +8 500 registros acerca de transacciones reales de ventas residenciales desde el año 1800 hasta el 2026 en Ohio, Estados Unidos. Incluye datos como el precio de venta, cantidad de baños y habitaciones, tamaño de la casa, año de venta, entre otros. 
+
+## Objetivos
+
+El objetivo de este proyecto es determinar el peso que tienen las variables en el precio final de las viviendas. 
+También se busca encontrar grupos de residencias con comportamiento similar entre si y ser capaces de predecir su valor final en funcion de las demas variables
+
+## Pregunta de Analisis
+
+¿Cómo influyen las características de las viviendas en su precio final en Ohio, qué agrupaciones naturales existen en el mercado y con qué precisión podemos predecir su valor?
+
+## Descripción de la base de datos
+
+```{r, echo=FALSE, results='asis'}
+cat('
+<style>
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+  }
+  th, td {
+    padding: 10px 20px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .rojo{
+    background-color: #ffcaca
+  }
+
+  .amarillo{
+    background-color: #ffe19c
+  }
+
+</style>
+
+<table>
+  <thead>
+    <tr>
+      <th>Variable</th>
+      <th>Descripción</th>
+      <th>Valores</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>type</code></td>
+      <td>Clasificacion arquitectonica de la propiedad.</td>
+      <td>
+        <li><code>single_family</code>: Casa independiente e individual, pensada para una sola familia</li>
+        <li><code>condos</code>: Apartamentos individuales dentro de un solo edificio</li>
+        <li><code>townhomes</code>: Casas adosadas</li>
+        <li><code>multi_family</code>: Edificios completos para varias familias</li>
+        <li><code>other</code>: Cualquier tipo de propiedad que no encaja en las categorías anteriores</li>
+      </td>
+    </tr>
+
+    <tr class="rojo">
+      <td><code>sub_type</code></td>
+      <td>No disponible</td>
+      <td> 100% nulos </td>
+    </tr>
+
+    <tr>
+      <td><code>listPrice</code></td>
+      <td>Precio inicial pedido por el vendedor en USD</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr>
+      <td><code>sqft</code></td>
+      <td>Superficie interior en pies cuadrados</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr>
+      <td><code>stories</code></td>
+      <td>Numero de pisos</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr>
+      <td><code>beds</code></td>
+      <td>Cantidad de dormitorios. Si la vivienda es <code>multi_family</code>, puede indicar la cantidad total de apartamentos</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr class="amarillo">
+      <td><code>baths</code></td>
+      <td>Conteo total de baños. Combina baños completos (inodoro + ducha + lavamanos) y baños de visitas (inodoro + lavamanos)</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr class="amarillo">
+      <td><code>baths_full</code></td>
+      <td>Cantidad de baños completos</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr class="amarillo">
+      <td><code>baths_full_calc</code></td>
+      <td>Cantidad de baños completos calclados por el sistema</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr>
+      <td><code>garage</code></td>
+      <td>Cantidad de autos que caben en el garage</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr>
+      <td><code>lastSoldPrice</code></td>
+      <td>Precio de venta final</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr>
+      <td><code>postal_code</code></td>
+      <td>Codigo postal de 5 digitos correspondiente a la propiedad</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr class="rojo">
+      <td><code>is_valid_oh_zip</code></td>
+      <td>Indica si el codigo postal existe en Ohio</td>
+      <td>Todos sus valores son <code>True</code></td>
+    </tr>
+
+    <tr class="rojo">
+      <td><code>zip_candidate_count</code></td>
+      <td>Número de códigos postales de Ohio que el sistema encontró dentro del enlace web de la propiedad</td>
+      <td>Todos los valores son <code>1</code></td>
+    </tr>
+
+    <tr class="amarillo">
+      <td><code>sold_to_list_ratio</code></td>
+      <td>Resultado de la division entre <code>lastSoldPrice</code> y <code>listPrice</code>. Si este valor es mayor a <code>1</code>, entonces indica que la casa se vendio por encima del precio original.</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr class="amarillo">
+      <td><code>price_premium_pct</code></td>
+      <td>Porcentaje de prima o descuento. Si es positivo indica que la propiedad se vendio por encima del precio original</td>
+      <td>Numericos</td>
+    </tr>
+
+    <tr class="amarillo">
+      <td><code>negotiation_outcome</code></td>
+      <td>Resultado de la negociacion</td>
+      <td>
+        <li><code>At Asking</code>: La casa se vendió exactamente al precio listado</li>
+        <li><code>Above Asking</code>: La casa se vendió por más dinero del que pedía el vendedor</li>
+        <li><code>Below Asking</code>: El comprador obtuvo un descuento</li>
+      </td>
+    </tr>
+
+    <tr>
+      <td><code>ratio_outlier_flag</code></td>
+      <td>Indica si <code>sold_to_list_ratio</code> es un valor atipico</td>
+      <td>Booleano</td>
+    </tr>
+
+    <tr class="rojo">
+      <td><code>text_clean</code></td>
+      <td>Descripción del texto publicitario de la propiedad</td>
+      <td>Cadenas de texto</td>
+    </tr>
+
+    <tr class="rojo">
+      <td><code>pii_redacted_flag</code></td>
+      <td>Indica si el campo <code>text_clean</code> poseia informacion personal que fue censurada</td>
+      <td>Booleano</td>
+    </tr>
+
+    <tr>
+      <td><code>year_built</code></td>
+      <td>Año en que la propiedad fue construida</td>
+      <td>Numericos</td>
+    </tr>
+
+  </tbody>
+</table>
+')
+```
+
+
+#Estructura del proyecto
+
+
+## Carga de datos
+
+Lo primero a realizar para la ejecucion de este proyecto es la carag de los datos por lo que se llama al dataset con un read.csv
+```{r, message=FALSE, warning=FALSE}
+library(dplyr)
+
+df = read.csv("ohio_sold_real_estate_intelligence_2026.csv")
+df = df %>%
+    select(-c(sub_type, is_valid_oh_zip, zip_candidate_count, text_clean, pii_redacted_flag)) %>%
+    # Variables redundantes (marcadas en amarillo): nos quedamos con una por grupo
+    # baths, baths_full, baths_full_calc -> nos quedamos con baths (conteo total, medida mas completa)
+    # sold_to_list_ratio, price_premium_pct, negotiation_outcome -> nos quedamos con price_premium_pct (continua, mas informativa)
+    select(-c(baths_full, baths_full_calc, sold_to_list_ratio, negotiation_outcome))
+
+head(df, 3)
+```
+
+## Exploración y preparación de los datos
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(mice)
+library(cluster)
+library(factoextra)
+library(ggcorrplot)
+library(car)
+library(olsrr)
+library(fastDummies)
+library(DescTools)
+library(gvlma)
+
+
+
+df$type = as.factor(df$type)
+df$postal_code = as.factor(df$postal_code)
+df$ratio_outlier_flag = as.logical(df$ratio_outlier_flag)
+
+summary(df)
+```
+
+Se observan algunos valores imposibles y algunas variables con valores nulos
+
+### Tratamiento de valores atipicos
+
+```{r, message=FALSE, warning=FALSE}
+extremos <- c("baths", "beds", "stories", "garage") 
+
+for (col in extremos) {
+  cat("\n--- Columna:", col, "---\n")
+  print(table(df[[col]]))
+}
+
+df %>% 
+  filter(
+    stories == max(stories, na.rm = TRUE) | 
+    beds   == max(beds, na.rm = TRUE) |
+    baths    == max(baths , na.rm = TRUE) | 
+    garage   == max(garage, na.rm = TRUE)
+  )
+```
+
+Los valores maximos de las columnas anteriormente mostradas muestran valores imposibles. Ademas, al analizar su contenido se aprecia como los demas campos no tienen sentido.
+```{r, message=TRUE, warning=TRUE}
+df <- df %>% 
+  filter(
+    coalesce(
+      !(stories == max(stories, na.rm = TRUE) | 
+        beds    == max(beds, na.rm = TRUE)    |
+        baths   == max(baths, na.rm = TRUE)   | 
+        garage  == max(garage, na.rm = TRUE)),
+      TRUE
+    ),
+    
+    coalesce(listPrice >= 10000, TRUE),
+    coalesce(lastSoldPrice >= 10000, TRUE),
+    coalesce(sqft >= 150, TRUE),
+    coalesce(price_premium_pct <= 100, TRUE)
+  )
+```
+
+
+### Visualizacion de variables numericas
+```{r, message=FALSE, warning=FALSE}
+df %>%
+  select(where(is.numeric)) %>% 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Valor") %>% 
+  ggplot(aes(x = Valor)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+  facet_wrap(~ Variable, scales = "free") +
+  theme_minimal() +
+  labs(title = "Distribución de variables numéricas",
+       x = NULL, 
+       y = "Frecuencia")
+```
+
+Se observan valores extremos que provocan grandes sesgos en la distribucion de los graficos. 
+
+El análisis gráfico de histogramas mostró que, incluso después de la limpieza inicial, persisten valores extremos que generan un fuerte sesgo en la distribución de varias variables numéricas. Esto se confirmó también mediante diagramas de caja (boxplots), que evidenciaron la presencia de colas largas hacia la derecha, particularmente en las variables de precio y superficie — un patrón habitual en datos inmobiliarios, donde un pequeño número de propiedades de lujo o de gran tamaño se aleja considerablemente del resto del mercado.
+
+### Correlaciones
+```{r, message=FALSE, warning=FALSE}
+cor_matrix <- cor(df[sapply(df, is.numeric)], use = "complete.obs")
+ggcorrplot(cor_matrix, type = "full", lab = TRUE)
+```
+
+La matriz de correlación reveló que todas las relaciones fuertes identificadas son positivas. La correlación más alta se observa, como es esperable, entre lastSoldPrice y listPrice, dado que ambas variables están directamente relacionadas el precio final suele negociarse a partir del precio de lista. Las variables sqft y baths también mostraron una relación importante con lastSoldPrice, lo que sugiere que el tamaño de la vivienda y la cantidad de baños son factores relevantes para explicar el precio final.
+
+### Imputacion de valores nulos
+```{r, message=FALSE, warning=FALSE}
+invisible(md.pattern(df, rotate.names = TRUE))
+```
+
+No se observa un patron marcado en los datos faltantes, por lo que probablemente se trate de un MCAR.
+
+```{r, message=FALSE, warning=FALSE}
+
+ini = mice(df, max = 0, print = FALSE)
+predMatrix = ini$predictorMatrix
+metodos = ini$method
+
+predMatrix[, "postal_code"] = 0
+predMatrix[, "price_premium_pct"] = 0
+
+set.seed(123)
+imputacion_mice = mice(
+  data = df,
+  m = 5,
+  predictorMatrix = predMatrix,
+  method = metodos,
+  printFlag = FALSE
+)
+
+df_imputado <- complete(imputacion_mice, 1)
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+nulos <- data.frame(
+  cantidad = sapply(df_imputado, function(x) sum(is.na(x))),
+  porcentaje = sapply(df_imputado, function(x) round(mean(is.na(x)) * 100, 3))
+)
+
+cat(nulos['cantidad'] %>% sum())
+print(nulos)
+```
+
+se identificaron 6 964 registros completos, 1 327 valores ausentes únicamente en la columna garage, y un número reducido de filas con múltiples columnas nulas simultáneamente.
+
+Como las variables numéricas están correlacionadas entre sí, se optó por imputación múltiple mediante el algoritmo MICE ya que aprovecha esas relaciones entre variables para generar estimaciones más precisas y evita sesgos
+
+
+
+Durante la revisión inicial se identificaron varias columnas que no aportan valor real y fueron descartadas estas fueron: sub_type (100% de valores nulos)
+is_valid_oh_zip y zip_candidate_count (constantes, sin variabilidad)
+text_clean y pii_redacted_flag (texto libre no estructurado)
+
+Tambien se detectaron grupos de variables redundantes entre sí, de los cuales se conservó una sola representante por grupo: de baths baths_full y baths_full_calc se mantuvo baths por ser la medida más completa; 
+de sold_to_list_ratio, price_premium_pct y negotiation_outcome se mantuvo price_premium_pct por ser continua y más informativa que sus alternativas.
+
+Al inspeccionar las variables beds, baths, stories y garage se encontraron valores físicamente imposibles para una vivienda residencial, como garajes con capacidad para 520 vehículos, 108 baños o 118 dormitorios en un mismo inmueble. Al revisar el resto de los campos de esos registros se confirmó que no tenían sentido en su conjunto, por lo que se decidió eliminarlos del análisis.
+
+Además de este filtro, se aplicaron umbrales mínimos razonables a otras variables de precio y tamaño: se excluyeron registros con listPrice o lastSoldPrice menores a $10 000 USD, viviendas con menos de 150 pies cuadrados de superficie, y valores de price_premium_pct superiores al 100%, todos ellos indicativos de errores de captura o de transacciones no representativas del mercado residencial típico.
+
+
+## Clustering
+
+```{r, message=FALSE, warning=FALSE}
+
+df_base <- df_imputado %>%
+  select(-c(postal_code, listPrice)) %>%
+  mutate(across(
+    where(is.numeric), ~ Winsorize(.x, val = quantile(.x, probs = c(0.1, 0.9))))) %>%
+  dummy_cols(select_columns = 'type', remove_selected_columns = TRUE, remove_first_dummy = TRUE) %>%
+  mutate(ratio_outlier_flag = as.integer(ratio_outlier_flag))
+
+df_clustering = df_base %>%
+  scale()
+
+set.seed(123)
+fviz_nbclust(df_clustering, kmeans, method = "wss") +
+  labs(title = "Metodo del Codo")
+
+```
+ç
+No se observa un punto demasiado claro en donde la inercia se estabilice. Se escogen 4 clusters
+```{r, message=FALSE, warning=FALSE}
+set.seed(123)
+k <- 3
+
+km_res <- kmeans(df_clustering, centers = k, nstart = 25)
+
+fviz_cluster(km_res, data = df_clustering, geom = "point", ellipse.type = "convex") +
+  labs(title = "Visualizacion de Clusters")
+```
+```{r, message=FALSE, warning=FALSE}
+
+df_base %>%
+  mutate(cluster = km_res$cluster) %>%
+  group_by(cluster) %>%
+  summarise(
+    count = n(),
+    across(where(is.numeric), ~ round(mean(.x, na.rm = TRUE), 2))
+  )
+
+```
+
+
+Para identificar agrupaciones naturales de viviendas con comportamiento similar se aplicó un análisis de conglomerados k-means. Previamente, se hizo un recorte de valores extremos entre los percentiles 10 y 90 de las variables numericas para reducir la influencia de los outliers detectados en el EDA, la variable categórica type fue transformada mediante variables dummy, y todas las variables fueron estandarizadas antes de calcular las distancias.
+El método del codo se utilizo para determinar el número óptimo de grupos, no mostró un punto de inflexión claramente definido donde la inercia se estabilizara. Ante esta ambigüedad, se optó por trabajar con 4 clusters, un número que ofrece un balance razonable entre simplicidad interpretativa y capacidad de diferenciación entre segmentos del mercado. La visualización de los grupos resultantes permitió observar una separación parcial entre segmentos, con perfiles promedio distintos en términos de tamaño, precio y características físicas de la vivienda.
+
+
+
+
+## Regresion Lineal Multiple
+```{r}
+
+df_lm = df_base %>%
+  select(-c(price_premium_pct, ratio_outlier_flag))
+
+regresion <- df_lm %>%
+  lm(lastSoldPrice ~ ., data = .)
+
+summary(regresion)
+vif(regresion)
+
+```
+
+Se observa como la variable 'stories' es la unica que practicamente no tiene importancia en el modelo. Ademas, el VIF nos indica que no hay problemas de multicolinealidad
+```{r, message=FALSE, warning=FALSE, fig.width=12, fig.height=10}
+
+full_model <- lm(
+  lastSoldPrice ~ sqft + beds + baths + garage + year_built + type_multi_family + type_other  + type_single_family,
+  data = df_lm
+)
+
+all_models <- ols_step_all_possible(full_model)
+
+all_models$result %>% 
+  as_tibble() %>% 
+  arrange(desc(adjr)) %>% 
+  head(10)
+
+plot(all_models)
+
+```
+
+```{r, message=FALSE, warning=FALSE}
+lm_final =   lm(lastSoldPrice ~sqft+ beds+ baths+ garage+ year_built+ type_multi_family+ type_other, data = df_lm)
+summary(gvlma(lm_final))
+```
+
+```{r, message=FALSE, warning=FALSE}
+par(mfrow=c(2,2))
+plot(lm_final)
+```
+
+El objetivo de esta etapa es predecir la variable lastSoldPrice a partir de las características físicas de la vivienda. Se excluyeron del modelo las variables derivadas directamente del precio, para evitar fuga de información (data leakage), y se partió de un modelo con todas las variables predictoras disponibles.
+
+El resultado del modelo completo mostró que la variable stories es prácticamente irrelevante para explicar el precio final, con un aporte marginal no significativo. El análisis del Factor de Inflación de la Varianza confirmó que no existen problemas relevantes de multicolinealidad entre los predictores, es decir, las variables explicativas no están redundando información entre sí de forma problemática. se utilizó una búsqueda exhaustiva de todas las combinaciones posibles de predictores (ols_step_all_possible), evaluando su desempeño mediante el R² ajustado. Los resultados mostraron que los mejores modelos utilizan entre 7 y 8 variables con diferencias marginales de desempeño entre ellos. 
+
+El modelo final logra explicar aproximadamente el 68% de la variabilidad del precio de venta R² ≈ 0.68. Sin embargo, la validación de supuestos del modelo lineal indicó que no se cumplen todos los supuestos requeridos para una regresión lineal clásica, lo que limita la confiabilidad de las inferencias estadísticas estrictas del modelo.
+
+En conclusion si bien el modelo lineal ofrece una primera aproximación razonable e interpretable sobre los factores que determinan el precio de una vivienda, el incumplimiento de los supuestos sugiere que sería conveniente explorar modelos alternativos que no dependen de estos supuestos y suelen capturar mejor relaciones no lineales entre las variables.
+
+
+
+
+## Montecarlo
+
+
+```{r, message=FALSE}
+
+# Montecarlo
+
+# ---- 1. Probabilidad base: proporción real de ventas sobre precio de lista ----
+p_real <- mean(df$price_premium_pct > 0)
+p_real
+
+# ---- 2. Simulación de Montecarlo ----
+set.seed(309)
+
+n <- 15       # tamaño de muestra (casas vendidas)
+umbral <- 8   # al menos 8 de 15 por encima del precio de lista
+
+N <- 10000
+resultados <- logical(N)
+
+for (i in 1:N) {
+  ventas <- sample(c(TRUE, FALSE), size = n, replace = TRUE, prob = c(p_real, 1 - p_real))
+  resultados[i] <- sum(ventas) >= umbral
+}
+
+p_estimada <- sum(resultados) / N
+cat("Estimada:", round(100 * p_estimada, 1), "%\n")
+
+# ---- 3. Probabilidad exacta (binomial) ----
+p_exacta <- 1 - pbinom(umbral - 1, size = n, prob = p_real)
+cat("Exacta: ", round(100 * p_exacta, 1), "%\n")
+cat("Diferencia: ", round(100 * abs(p_estimada - p_exacta), 2), "puntos\n")
+
+# ---- 4. Gráfico de convergencia ----
+library(ggplot2)
+
+prop_acumulada <- cumsum(resultados) / (1:N)
+datos <- data.frame(n_sim = 1:N, prob = 100 * prop_acumulada)
+
+ggplot(datos, aes(x = n_sim, y = prob)) +
+  geom_line(color = "#ff8fab", linewidth = 0.7) +
+  geom_hline(yintercept = 100 * p_exacta, linetype = "dashed", color = "#a2d2ff") +
+  labs(title = "Convergencia de la estimación: probabilidad de ≥8 de 15 casas vendidas sobre precio de lista",
+       x = "Número de simulaciones", y = "Probabilidad (%)") +
+  theme_minimal()
+```
+
+
+Se aplicó una simulación de Montecarlo con el objetivo de estimar la probabilidad de que, en una muestra aleatoria de 15 propiedades vendidas en Ohio, al menos 8 se hayan vendido por encima de su precio de lista original. Este análisis se basa en el hallazgo de que, del total de propiedades del dataset, el 40.25% (2,810 de 6,981) se vendió por encima del precio pedido (price_premium_pct > 0), valor que se utilizó como la probabilidad base del evento.
+
+
+
+Se generaron 10,000 muestras aleatorias de 15 casas cada una, contabilizando en cuántas de ellas se cumplía la condición de al menos 8 ventas por encima del precio de lista. La probabilidad estimada por simulación fue de 21.8%, prácticamente idéntica al valor exacto calculado mediante la distribución binomial (21.9%), con una diferencia de apenas 0.12 puntos porcentuales. El gráfico de convergencia muestra que la estimación se estabiliza rápidamente (antes de las 1,000 simulaciones) alrededor del valor teórico, ilustrando la Ley de los Grandes Números: a mayor número de simulaciones, la estimación converge hacia la probabilidad real.
+
+
+El resultado indica que, aunque el 40% de las casas se venden por encima del precio pedido a nivel individual, es relativamente poco común (aproximadamente 1 de cada 5 veces) que la mayoría de una muestra pequeña de 15 ventas (8 o más) se comporte así simultáneamente. La cercanía entre la estimación simulada y el valor exacto valida tanto la metodología de simulación como la robustez del parámetro p_real calculado directamente del dataset, confirmando que Montecarlo es una herramienta confiable para estimar probabilidades de eventos compuestos en este mercado inmobiliario.
+
+
+
+#Discusión
+
+##Significado de los resultados
+
+Los hallazgos del análisis sugieren que el precio de una vivienda en Ohio está determinado principalmente por su tamaño y su cantidad de baños, mientras que variables como el número de pisos aportan poca información adicional una vez que se controla por el resto de las características. Esto es consistente con la intuición de mercado: los compradores valoran directamente el espacio habitable y la funcionalidad de los baños, mientras que la distribución en pisos es en gran medida una consecuencia del tamaño del lote y no un atributo independiente que se pague por sí mismo.
+
+La segmentación en 4 clusters confirma que el mercado inmobiliario de Ohio no es homogéneo, sino que existen perfiles diferenciados de vivienda por ejemplo propiedades más pequeñas y económicas frente a propiedades más grandes y de mayor valor pero la ausencia de un punto de codo claramente definido indica que los límites entre estos segmentos no son completamente naturales o discretos, sino más bien un continuo de características que se agrupó de forma razonable, pero no única. Esto significa que el número de 4 clusters es una decisión práctica y defendible, mas no la única solución válida.
+
+En cuanto al modelo de regresión, que explica cerca del 68% de la variabilidad del precio, el resultado indica que las variables estructurales de la vivienda capturan una parte sustancial de lo que determina el precio final. El 32% restante de la variabilidad probablemente esté asociado a factores no incluidos en la base de datos, como la ubicación específica dentro del código postal, el estado de conservación de la propiedad, condiciones del mercado en el momento de la venta, o características cualitativas que no fueron capturadas como variables numéricas.
+
+
+## Limitaciones
+
+Eliminación de outliers basada en criterios manuales: 
+
+los umbrales utilizados para descartar registros imposibles como por ejemplo precios mínimos o baños máximos no fueron mediante un método estadístico formal, lo que introduce cierto grado de subjetividad en los datos finalmente analizados.
+
+
+Incumplimiento de los supuestos de la regresión lineal: 
+
+la prueba gvlma indicó que no se cumplen todos los supuestos clásicos del modelo, por lo que los errores estándar, los intervalos de confianza y las pruebas de significancia del modelo deben interpretarse con cautela, el modelo es útil como aproximación descriptiva y predictiva, pero no garantiza inferencia estadística rigurosa.
+
+el recorte de valores extremos entre los percentiles : 
+
+el recorte de valores extremos entre los percentiles 10 y 90 reduce la influencia de outliers, pero también implica que el modelo y los clusters no representan bien a las propiedades verdaderamente atípicas del mercado 
+
+Alcance geográfico y temporal: 
+
+al tratarse de datos exclusivos del estado de Ohio, los resultados y el modelo no son necesariamente generalizables a otros mercados inmobiliarios con dinámicas de precio distintas.
+
+
+#Conclusiones generales
+
+Las características con mayor peso sobre el precio final de una vivienda en Ohio son la superficie y la cantidad de baños, consistente con lo observado tanto en la matriz de correlación como en el modelo de regresión pero el número de pisos no resultó un predictor relevante del precio final y fue descartado en el modelo final. El análisis de clusters permite segmentar el mercado en 4 grupos de viviendas con perfiles distintos, aunque sin una separación absolutamente nítida entre ellos. El modelo de regresión lineal múltiple explica cerca del 68% de la variabilidad del precio, pero no cumple todos los supuestos estadísticos requeridos, por lo que sus resultados deben interpretarse con cautela y se recomienda explorar modelos no lineales como siguiente paso y la simulación de Montecarlo complementa el modelo predictivo al ofrecer un rango de precios probables en lugar de una única estimación puntual, lo cual es más útil en un contexto de toma de decisiones bajo incertidumbre.
+
+
+
+
